@@ -1,0 +1,8 @@
+---
+name: victory-shader-debug
+description: Investigate RDNA2-to-DXIL translation failures, semantic shader errors, EXEC masks, SSA joins, descriptor provenance and wave32/wave64 compatibility in victory-shader.
+---
+# Shader investigation
+Read AGENTS.md and current shader architecture. Locate decode (gfx10/native), IR, structuring, resource analysis, lowering, DXIL emission/validator. Use public AMD RDNA2 ISA, Microsoft DirectX specifications and current local dependency docs. VIctory emits DXIL directly; DXC is a reference/diagnostic tool, not a presumed runtime dependency.
+Use current `victory translate --help`, shader-info and translate --validate for bounded tests on authorized data. Keep proprietary shader outputs private; transmit aggregate counts and minimal non-sensitive metadata only. Start with a small independently authored synthetic fixture. Explain expected per-lane values, flags, descriptor kinds, memory semantics and control flow as applicable. Test the failing case on baseline before changing anything. Use existing valu_tests, diff_tests or waterfall_tests patterns and host validation. Compare expected CPU values to GPU output when supported; report skipped capabilities, wave sizes and limitations explicitly. A validated DXIL blob is not a semantic success. Do not treat unsupported shaders returning zeros as correctness.
+Check for competing PRs on the same opcode/path; present evidence and a focused fix proposal. After approval, run targeted and full tests, compare aggregate translation results and confirm no regression. Do not publish derived shader code or samples.

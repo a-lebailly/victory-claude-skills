@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -NonInteractive -File \"scripts/agent/preflight.ps1\" -SessionStart",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
