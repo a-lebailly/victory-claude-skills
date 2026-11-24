@@ -6,6 +6,8 @@ $root = Get-VictoryRoot
 $names = @('git','rustup','cargo','rustc','rust-analyzer','claude','gh','winget')
 $missing = @()
 Write-Output '[VIctory agent preflight] Read-only inventory; no installations or network requests.'
+Write-Output 'WORKSPACE: local VIctory fork (intended private). All development stays in this checkout.'
+Write-Output 'UPSTREAM: Marvisak/VIctory is a public read-only reference, not the working repository. Verify local remotes and HEAD; do not auto-sync or publish.'
 foreach ($name in $names) {
     if (Find-Tool $name) { Write-Output "OK: $name on PATH" }
     else { Write-Output "MISSING: $name on PATH"; $missing += $name }
@@ -22,9 +24,10 @@ if ($pix) {
     }
 }
 else { Write-Output 'OPTIONAL: PIX with DxDmp MCP not detected' }
-foreach ($name in @('cdb.exe','dxc.exe')) {
-    if (Find-SdkTool $name) { Write-Output "OK: $name" }
-    else { Write-Output "OPTIONAL: $name not found on PATH or standard Windows SDK paths" }
+$extended = Get-AgentExtendedTools
+foreach ($name in @('CDB','DXC','RenderDoc','ProcessMonitor')) {
+    if ($extended[$name]) { Write-Output "OK: ${name}: $($extended[$name])" }
+    else { Write-Output "FULLSTACK: $name not detected; may be installed in a custom location." }
 }
 if (Test-Path -LiteralPath (Join-Path $root 'victory.toml')) { Write-Output 'OK: victory.toml exists (paths not checked)' }
 else { Write-Output 'SETUP: copy victory.example.toml to victory.toml and configure authorized external test files.' }
@@ -32,7 +35,17 @@ if (-not $SessionStart) {
     try {
         Get-CimInstance Win32_VideoController -ErrorAction Stop | ForEach-Object { Write-Output ('GPU: ' + $_.Name + '; driver ' + $_.DriverVersion) }
     } catch { Write-Output 'GPU: inventory unavailable' }
+    $vendors = @(Get-AgentGpuVendors)
+    if ('NVIDIA' -in $vendors) {
+        if ($extended.NsightGraphics) { Write-Output "OK: Nsight Graphics: $($extended.NsightGraphics)" }
+        else { Write-Output 'FULLSTACK: NVIDIA detected; Nsight Graphics / Aftermath may need vendor installation.' }
+    }
+    if ('AMD' -in $vendors) {
+        if ($extended.RadeonGPUProfiler) { Write-Output "OK: Radeon GPU Profiler: $($extended.RadeonGPUProfiler)" }
+        else { Write-Output 'FULLSTACK: AMD detected; Radeon GPU Profiler may need vendor installation.' }
+    }
 }
+Write-Output 'FullStack is opt-in: ask approval for scripts/agent/bootstrap.ps1 -Install -FullStack if needed.'
 Write-Output 'Plugin activation, Rust components, GPU capabilities and MCP connectivity require separate verification.'
 if ($missing.Count -gt 0) { Write-Output 'Before development, report missing tools and ask approval for scripts/agent/bootstrap.ps1 -Install.' }
 else { Write-Output 'Core PATH tools detected; verify actual build and tests before claiming readiness.' }

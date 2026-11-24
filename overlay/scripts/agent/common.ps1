@@ -85,3 +85,40 @@ function Get-PixRuntimeStatus([string]$PixDir) {
         CoreReady = [bool]($core -and $core -ge $minimumCore)
     }
 }
+
+# Read-only GPU vendor detection. PCI vendor IDs avoid ambiguous adapter names.
+function Get-AgentGpuVendors {
+    try {
+        $adapters = @(Get-CimInstance Win32_VideoController -ErrorAction Stop)
+        $vendors = @()
+        foreach ($adapter in $adapters) {
+            if ($adapter.PNPDeviceID -match 'VEN_10DE' -or $adapter.Name -match 'NVIDIA') { $vendors += 'NVIDIA' }
+            if ($adapter.PNPDeviceID -match 'VEN_1002' -or $adapter.Name -match 'AMD|Radeon|Advanced Micro Devices') { $vendors += 'AMD' }
+            if ($adapter.PNPDeviceID -match 'VEN_8086' -or $adapter.Name -match 'Intel') { $vendors += 'Intel' }
+        }
+        return @($vendors | Sort-Object -Unique)
+    } catch { return @() }
+}
+function Find-AgentProgram([string]$Name, [string[]]$Patterns = @()) {
+    $tool = Find-Tool $Name
+    if ($tool) { return $tool }
+    foreach ($pattern in $Patterns) {
+        $file = Get-Item -Path $pattern -ErrorAction SilentlyContinue | Where-Object { -not $_.PSIsContainer } | Select-Object -First 1
+        if ($file) { return $file.FullName }
+    }
+    return $null
+}
+function Get-AgentExtendedTools {
+    $pf = $env:ProgramFiles
+    $local = $env:LOCALAPPDATA
+    $pf86 = ${env:ProgramFiles(x86)}
+    $cdb = Find-SdkTool 'cdb.exe'
+    $dxc = Find-SdkTool 'dxc.exe'
+    if (-not $dxc) { $dxc = Find-AgentProgram 'dxc.exe' @("$local\Microsoft\WinGet\Packages\Microsoft.DirectX.ShaderCompiler*\bin\x64\dxc.exe", "$pf\WinGet\Packages\Microsoft.DirectX.ShaderCompiler*\bin\x64\dxc.exe") }
+    $renderdoc = Find-AgentProgram 'renderdoccmd.exe' @("$pf\RenderDoc\renderdoccmd.exe", "$pf86\RenderDoc\renderdoccmd.exe")
+    $procmon = Find-AgentProgram 'Procmon64.exe' @("$local\Microsoft\WinGet\Packages\Microsoft.Sysinternals.ProcessMonitor*\Procmon64.exe", "$pf\WinGet\Packages\Microsoft.Sysinternals.ProcessMonitor*\Procmon64.exe")
+    if (-not $procmon) { $procmon = Find-Tool 'Procmon.exe' }
+    $nsight = Find-AgentProgram 'ngfx-capture.exe' @("$pf\NVIDIA Corporation\Nsight Graphics*\host\windows-desktop-nomad-x64\ngfx-capture.exe", "$pf\NVIDIA Corporation\Nsight Graphics*\host\windows-desktop-x64\ngfx-capture.exe", "$pf\NVIDIA Corporation\Nsight Graphics*\ngfx-capture.exe")
+    $rgp = Find-AgentProgram 'RadeonGPUProfiler.exe' @("$pf\AMD\Radeon Developer Tool Suite*\RadeonGPUProfiler.exe", "$pf\AMD\Radeon Developer Tool Suite*\RadeonGPUProfiler\RadeonGPUProfiler.exe", "$pf\AMD\Radeon GPU Profiler*\RadeonGPUProfiler.exe")
+    return [ordered]@{ CDB = $cdb; DXC = $dxc; RenderDoc = $renderdoc; ProcessMonitor = $procmon; NsightGraphics = $nsight; RadeonGPUProfiler = $rgp }
+}

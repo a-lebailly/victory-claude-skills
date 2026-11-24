@@ -2,9 +2,15 @@
 
 Windows native x64, Git, Claude Code and Rust are prerequisites. This is tooling from [victory-claude-skills](https://github.com/a-lebailly/victory-claude-skills), not an upstream VIctory requirement. Review the scripts before running them. Use a valid authorized test title outside the repository. Do not use agent tooling to acquire proprietary files or bypass DRM.
 
+## Repository roles
+
+Open Claude Code or Codex in the **local private VIctory fork** selected during installation, not the toolkit checkout and not a separate clone of the public upstream. All source edits, builds, tests, and baseline comparisons use the private fork's checked-out code. The configured `origin` normally points to that fork; inspect rather than assume the URL or branch.
+
+[Marvisak/VIctory](https://github.com/Marvisak/VIctory) is the public upstream, consulted for public issues, PRs and history only. For example, use `gh pr list --repo Marvisak/VIctory` for upstream research. Never change remotes, sync branches, publish private material, or submit upstream changes without explicit approval. The toolkit repository is used only for installing/updating agent tooling. See `AGENTS.md` for the full trust boundary.
+
 ## First run
 
-From the repository root:
+From the local private fork root:
 
 ```powershell
 .\scripts\agent\preflight.ps1
@@ -17,7 +23,15 @@ Optional local PIX MCP and its official skill, with explicit consent:
 .\scripts\agent\bootstrap.ps1 -Install -EnablePixMcp
 ```
 
-Reopen PowerShell if a newly installed tool is not on PATH. Run `claude` from the repository root and review the project MCP trust prompt. Use `/plugin`, `/mcp` and `/hooks` to inspect loaded configuration. The bootstrap can be rerun; it avoids reinstalling detected tools; the optional PIX setup repairs missing or insufficient .NET runtime versions, but does not perform unrelated upgrades. An incomplete step is reported, not silently treated as success. `-Launch` optionally starts Claude after an approved successful bootstrap. No script changes drivers, TDR, execution policy, page file, firewall, or security settings. Do not bypass organizational policy. If a downloaded script is blocked, inspect it and follow your organization's trusted-script procedure.
+For the approved expanded profile (includes core tools and PIX MCP):
+
+```powershell
+.\scripts\agent\bootstrap.ps1 -Install -FullStack
+```
+
+FullStack attempts SDK/CDB, DXC, RenderDoc, Process Monitor and the WinDbg skills plugin. It detects NVIDIA/AMD adapters and reports the appropriate vendor tool installation if missing; vendor packages, WPT, Ghidra and Nsight Systems remain manual. Check reported executable paths and `/plugin`, `/mcp`, `/hooks` before use.
+
+Reopen PowerShell if a newly installed tool is not on PATH. Run `claude` from the local private fork root and review the project MCP trust prompt. Use `/plugin`, `/mcp` and `/hooks` to inspect loaded configuration. The bootstrap can be rerun; it avoids reinstalling detected tools; the optional PIX setup repairs missing or insufficient .NET runtime versions, but does not perform unrelated upgrades. An incomplete step is reported, not silently treated as success. `-Launch` optionally starts Claude after an approved successful bootstrap. No script changes drivers, TDR, execution policy, page file, firewall, or security settings. Do not bypass organizational policy. If a downloaded script is blocked, inspect it and follow your organization's trusted-script procedure.
 
 Each session runs a read-only PowerShell preflight via `.claude/settings.json`. For Codex, read `AGENTS.md` and run preflight directly. Missing components are proposed to the user before installation, never silently installed by a session hook. See [Claude hooks](https://code.claude.com/docs/en/hooks) and [PIX diagnostics](https://learn.microsoft.com/windows/pix/directx-dump-files/analyze-dump-files-with-ai-agents).
 
@@ -36,17 +50,17 @@ Each session runs a read-only PowerShell preflight via `.claude/settings.json`. 
 | .NET Runtime 10 (x64) | https://dotnet.microsoft.com/download/dotnet/10.0 | Required for PIX MCP; bootstrap installs/updates via Winget when needed |
 | ASP.NET Core Runtime 10 (x64) | https://dotnet.microsoft.com/download/dotnet/10.0 | Required for PIX MCP; bootstrap installs/updates via Winget when needed |
 | WinDbg | https://learn.microsoft.com/windows-hardware/drivers/debugger/ | Bootstrap via Winget |
-| CDB | https://developer.microsoft.com/windows/downloads/windows-sdk/ | Select Debugging Tools for Windows in SDK installer |
-| DXC | https://github.com/microsoft/DirectXShaderCompiler/releases | Windows SDK or official release; check path |
-| RenderDoc | https://github.com/baldurk/renderdoc/releases | Optional GUI/CLI installer; verify capture support |
-| Process Monitor | https://learn.microsoft.com/sysinternals/downloads/procmon | Optional standalone download |
+| CDB | https://developer.microsoft.com/windows/downloads/windows-sdk/ | FullStack: WinGet SDK `Microsoft.WindowsSDK.10.0.26100`; select **Debugging Tools for Windows** in SDK setup if CDB is still missing. |
+| DXC | https://github.com/microsoft/DirectXShaderCompiler/releases | FullStack: `winget install --id Microsoft.DirectX.ShaderCompiler -e`; SDK or official binaries also work. |
+| RenderDoc | https://github.com/baldurk/renderdoc/releases | FullStack: `winget install --id BaldurKarlsson.RenderDoc -e`; verify supported capture. |
+| Process Monitor | https://learn.microsoft.com/sysinternals/downloads/procmon | FullStack: `winget install --id Microsoft.Sysinternals.ProcessMonitor -e`. |
 | Windows Performance Toolkit | https://learn.microsoft.com/windows-hardware/test/wpt/ | Optional via Windows ADK |
 | Ghidra | https://github.com/NationalSecurityAgency/ghidra/releases | Optional, JDK per release; authorized binary analysis only |
 | NVIDIA Nsight Graphics / Aftermath | https://developer.nvidia.com/nsight-graphics | NVIDIA only; optional vendor installer; check edition/capture support |
 | NVIDIA Nsight Systems | https://developer.nvidia.com/nsight-systems | NVIDIA only, optional CPU/GPU profiling |
 | Radeon GPU Profiler | https://gpuopen.com/rgp/ | AMD only, optional vendor profiling |
 | GitHub MCP | https://github.com/github/github-mcp-server | Optional official guide; prefer read-only; no token in Git |
-| WinDbg skills | https://github.com/microsoft/win-dev-skills | Optional; inspect marketplace and current installation docs |
+| WinDbg skills | https://github.com/microsoft/win-dev-skills | FullStack: `claude plugin marketplace add microsoft/win-dev-skills`, then `claude plugin install windbg@win-dev-skills --scope project`. |
 
 ### PIX MCP troubleshooting
 

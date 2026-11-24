@@ -1,13 +1,15 @@
 [CmdletBinding()]
-param([switch]$Install,[switch]$EnablePixMcp,[switch]$Launch)
+param([switch]$Install,[switch]$EnablePixMcp,[switch]$Launch,[switch]$FullStack)
 $ErrorActionPreference = 'Stop'
+# -FullStack selects the full profile; -Install still authorizes bootstrap changes.
+if ($FullStack) { $EnablePixMcp = $true }
 . (Join-Path $PSScriptRoot 'common.ps1')
 $root = Get-VictoryRoot
 Push-Location $root
 try {
     if (-not $Install) {
         & (Join-Path $PSScriptRoot 'preflight.ps1')
-        Write-Host 'Dry run. To approve core installations: .\scripts\agent\bootstrap.ps1 -Install'
+        Write-Host 'Dry run. Approve core tools with -Install; add -FullStack for extended tools and PIX MCP.'
         return
     }
     $failed = New-Object 'System.Collections.Generic.List[string]'
@@ -35,6 +37,40 @@ try {
     if (-not (Find-Tool 'gh')) { Ensure-Winget 'GitHub.cli' }
     if (-not (Find-Pix)) { Ensure-Winget 'Microsoft.PIX' }
     if (-not (Find-Tool 'windbg.exe')) { Ensure-Winget 'Microsoft.WinDbg' }
+    if ($FullStack) {
+        Write-Host '== FullStack: native debugging and graphics tools =='
+        $tools = Get-AgentExtendedTools
+        if (-not $tools.CDB) {
+            # SDK setup can require a feature selection, even if the SDK is already installed.
+            Ensure-Winget 'Microsoft.WindowsSDK.10.0.26100'
+            if (-not (Find-SdkTool 'cdb.exe')) {
+                Write-Warning 'CDB not detected. In Windows SDK setup, select Debugging Tools for Windows (or modify the installed SDK): https://developer.microsoft.com/windows/downloads/windows-sdk/'
+                $failed.Add('CDB / Windows SDK Debugging Tools')
+            }
+        }
+        if (-not $tools.DXC) { Ensure-Winget 'Microsoft.DirectX.ShaderCompiler' }
+        if (-not $tools.RenderDoc) { Ensure-Winget 'BaldurKarlsson.RenderDoc' }
+        if (-not $tools.ProcessMonitor) { Ensure-Winget 'Microsoft.Sysinternals.ProcessMonitor' }
+        $vendors = @(Get-AgentGpuVendors)
+        if ($vendors.Count) { Write-Host ('GPU vendors: ' + ($vendors -join ', ')) }
+        else { Write-Warning 'GPU vendor detection unavailable; choose vendor tools manually.' }
+        if ('NVIDIA' -in $vendors) {
+            if ($tools.NsightGraphics) { Write-Host "NVIDIA Nsight Graphics CLI detected: $($tools.NsightGraphics)" }
+            else {
+                Write-Warning 'NVIDIA detected: install Nsight Graphics from https://developer.nvidia.com/nsight-graphics (includes Aftermath Monitor in compatible releases). No verified WinGet package for Graphics; vendor install required.'
+                $failed.Add('NVIDIA Nsight Graphics / Aftermath (manual)')
+            }
+        }
+        if ('AMD' -in $vendors) {
+            if ($tools.RadeonGPUProfiler) { Write-Host "AMD Radeon GPU Profiler detected: $($tools.RadeonGPUProfiler)" }
+            else {
+                Write-Warning 'AMD detected: install Radeon GPU Profiler / Radeon Developer Tool Suite from https://gpuopen.com/rgp/. No verified WinGet package; vendor install required.'
+                $failed.Add('AMD Radeon GPU Profiler (manual)')
+            }
+        }
+        Write-Host 'Optional manual tools: Ghidra, Windows Performance Toolkit, NVIDIA Nsight Systems. See docs/agent-tooling.md.'
+        Write-Host 'If installed in a custom location, provide the executable path to Claude; detection is not proof of absence.'
+    }
     if (Find-Tool 'rustup') {
         Invoke-Step 'Pinned Rust toolchain' { & rustup toolchain install }
         Invoke-Step 'Rust analyzer and sources' { & rustup component add rust-analyzer rust-src }
@@ -51,6 +87,21 @@ try {
             foreach ($plugin in @('superpowers@claude-plugins-official','rust-analyzer-lsp@claude-plugins-official')) {
                 if ($installed -match [regex]::Escape($plugin)) { Write-Host "$plugin already listed; verify active scope in /plugin." }
                 else { Invoke-Step "Plugin $plugin" { & claude plugin install $plugin --scope project } }
+            }
+        }
+        if ($FullStack) {
+            $installed = & claude plugin list 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { $failed.Add('WinDbg plugin inventory') }
+            elseif ($installed -match 'windbg@win-dev-skills') { Write-Host 'WinDbg plugin already listed; verify active scope in /plugin.' }
+            else {
+                $marketplaces = & claude plugin marketplace list 2>&1 | Out-String
+                if ($LASTEXITCODE -ne 0) { $failed.Add('WinDbg marketplace inventory') }
+                else {
+                    if ($marketplaces -notmatch 'win-dev-skills') {
+                        Invoke-Step 'Microsoft Windows developer skills marketplace' { & claude plugin marketplace add microsoft/win-dev-skills }
+                    }
+                    Invoke-Step 'WinDbg skills plugin' { & claude plugin install windbg@win-dev-skills --scope project }
+                }
             }
         }
         if ($EnablePixMcp) {
@@ -106,6 +157,16 @@ try {
             $failed.Add('Asset-policy Git hook')
         } elseif ($existingHooks -ne '.githooks') { Invoke-Step 'VIctory asset-policy Git hook' { & cargo xtask install-hooks } }
         else { Write-Host 'VIctory asset-policy Git hook already configured.' }
+    }
+    if ($FullStack) {
+        $extended = Get-AgentExtendedTools
+        foreach ($name in @('CDB','DXC','RenderDoc','ProcessMonitor')) {
+            if ($extended[$name]) { Write-Host "Detected ${name}: $($extended[$name])" }
+            else {
+                Write-Warning "$name executable not found in standard paths. Reopen PowerShell, verify installation, or supply its actual path."
+                $failed.Add("$name executable verification")
+            }
+        }
     }
     Write-Host 'Manual next steps: approve project MCP in Claude, check /plugin and /mcp; gh auth login if needed. SDK/CDB/DXC and vendor tools: docs/agent-tooling.md.'
     if ($failed.Count) { Write-Warning ('Incomplete: ' + ($failed -join ', ')); Write-Host 'Open a fresh terminal after installers and rerun. No readiness claim.'; return }

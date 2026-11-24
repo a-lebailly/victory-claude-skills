@@ -4,6 +4,14 @@ A community toolkit for AI-assisted development on [VIctory](https://github.com/
 
 This is a standalone tooling repository, not the VIctory runtime. It contains no game files or credentials.
 
+## Repository layout
+
+- **Your private VIctory fork:** the local checkout where Claude or Codex works, builds, tests and makes approved changes. Use your own path and remote URL.
+- **[Marvisak/VIctory](https://github.com/Marvisak/VIctory):** the public upstream, used for read-only research of public issues, PRs, commits and documentation. It is not the agent's working directory.
+- **[victory-claude-skills](https://github.com/a-lebailly/victory-claude-skills):** this separate tooling repository, used to install or update the configuration.
+
+The agent must preserve the private fork's existing work and keep private code/history confidential. No automatic upstream sync, remote changes, commits, pushes, or publication. The private fork must still comply with VIctory's asset policy.
+
 ## Installation (Windows)
 
 ### Prerequisites (install before running the script)
@@ -42,36 +50,54 @@ Alternatively, download and extract the [ZIP](https://github.com/a-lebailly/vict
 >
 > Retry the installation command below. If the preflight script in step 3 is blocked in a new PowerShell window, repeat this temporary step after reviewing that script as well.
 
-Replace `C:\path\to\VIctory` with the actual path to your VIctory checkout, or the location where you want it to be cloned.
+Replace `C:\path\to\VIctory` with the actual path to your **local private VIctory fork**. Use the existing checkout if available.
 
 ```powershell
-$VictoryPath = 'C:\path\to\VIctory' # Replace with your own path
+$VictoryPath = 'C:\path\to\VIctory' # Replace with your private fork path
 .\Install-VictoryAgent.ps1 -Target $VictoryPath -InstallTools -EnablePixMcp
 ```
 
-The installer clones VIctory if necessary, copies the toolkit into the checkout, installs the core tools and plugins, and attempts to configure PIX MCP when supported. Existing conflicting configuration files are not overwritten. No manual copying is required.
+The installer copies the toolkit into your selected checkout, installs the core tools and plugins, and attempts to configure PIX MCP when supported. Existing conflicting configuration files are not overwritten. No manual copying is required.
 
-- Omit `-InstallTools` to copy the configuration only.
-- Omit `-EnablePixMcp` to skip PIX MCP setup.
-- To clone your own VIctory fork instead, add `-RepoUrl 'https://github.com/YOUR-USERNAME/YOUR-VICTORY-FORK.git'` and replace the URL with your fork's actual URL.
+- Omit both `-InstallTools` and `-FullStack` to copy the configuration only.
+- Omit `-EnablePixMcp` to skip PIX MCP setup in standard mode. `-FullStack` always includes PIX MCP.
+- If your private fork is not cloned yet, specify its actual URL explicitly (replace both placeholders):
+
+  ```powershell
+  $VictoryPath = 'C:\path\to\VIctory' # Replace with your private fork path
+  .\Install-VictoryAgent.ps1 -Target $VictoryPath -RepoUrl 'https://github.com/YOUR-USERNAME/YOUR-VICTORY-FORK.git' -FullStack
+  ```
+
+  Authenticate to GitHub beforehand if needed. The installer never defaults to cloning public upstream; an existing checkout is used as-is without changing its remotes.
+
+### FullStack installation (recommended for GPU/runtime development)
+
+```powershell
+$VictoryPath = 'C:\path\to\VIctory' # Replace with your private fork path
+.\Install-VictoryAgent.ps1 -Target $VictoryPath -FullStack
+```
+
+`-FullStack` implies `-InstallTools -EnablePixMcp`. It also attempts the Windows SDK (CDB), DXC, RenderDoc and Process Monitor via WinGet, and installs Microsoft's WinDbg skills plugin. GPU detection uses Windows video-controller inventory; on hybrid systems both NVIDIA and AMD may be detected. Nsight Graphics / Aftermath or Radeon GPU Profiler are reported as manual vendor installs when not detected. Ghidra, WPT and Nsight Systems remain optional manual tools. No unverified download URLs or driver updates are used. SDK feature selection, package availability, UAC and custom install paths may require manual completion. The installer reports incomplete steps rather than claiming success.
 
 ### Updating an existing installation
 
 From the **new toolkit folder**, after replacing the example path:
 
 ```powershell
-$VictoryPath = 'C:\path\to\VIctory' # Replace with your own path
-.\Install-VictoryAgent.ps1 -Target $VictoryPath -InstallTools -EnablePixMcp -UpdateExisting
+$VictoryPath = 'C:\path\to\VIctory' # Replace with your private fork path
+.\Install-VictoryAgent.ps1 -Target $VictoryPath -FullStack -UpdateExisting
 ```
 
-`-UpdateExisting` replaces only unchanged files from the previous toolkit release (ignoring Git line-ending conversion). Customized files or unknown versions cause a conflict before copying; review and merge those files manually. Exception: with `-UpdateExisting`, a valid existing `.claude/settings.json` is preserved as-is, because Claude may have added plugin settings since installation. Check `/hooks` to confirm the SessionStart preflight hook is still enabled; if it is missing, merge the hook from `overlay/.claude/settings.json` manually. Existing MCP registrations are preserved. If you installed the old kit already, this also repairs the missing PIX runtimes without reinstalling everything. Close and reopen Claude sessions afterwards.
+For a standard update, use `-InstallTools -EnablePixMcp -UpdateExisting` instead of `-FullStack -UpdateExisting`.
+
+`-UpdateExisting` replaces only unchanged files from the supported original, updated, fixed and FullStack toolkit releases (ignoring Git line-ending conversion). Customized files or unknown versions cause a conflict before copying; review and merge those files manually. Exception: with `-UpdateExisting`, a valid existing `.claude/settings.json` is preserved as-is, because Claude may have added plugin settings since installation. Check `/hooks` to confirm the SessionStart preflight hook is still enabled; if it is missing, merge the hook from `overlay/.claude/settings.json` manually. Existing MCP registrations are preserved. If you installed the old kit already, this also repairs the missing PIX runtimes without reinstalling everything. Close and reopen Claude sessions afterwards.
 
 ### 3. Verify the installation
 
-Open a fresh PowerShell window. Replace the example path again with your actual VIctory folder.
+Open a fresh PowerShell window. Replace the example path again with your actual local private VIctory fork folder.
 
 ```powershell
-Set-Location 'C:\path\to\VIctory' # Replace with your own path
+Set-Location 'C:\path\to\VIctory' # Replace with your private fork path
 .\scripts\agent\preflight.ps1
 ```
 
@@ -82,18 +108,18 @@ Review any warnings and complete missing prerequisites or authentication steps b
 **Desktop (GUI):**
 
 1. Open Claude Desktop and select the **Code** tab.
-2. Start a **Local** session and select your configured VIctory folder (not the toolkit folder).
+2. Start a **Local** session and select your local private VIctory fork folder (not public upstream or the toolkit folder).
 3. Approve the project configuration and MCP servers if prompted. Verify that the skills, plugins and startup hook are available.
 
 The CLI is used by the installer for automated setup; you do not need to use the terminal interface for everyday development. Local Desktop sessions and the CLI share [Claude Code configuration files](https://code.claude.com/docs/en/settings).
 
-**CLI:** From the VIctory folder opened in step 3, run:
+**CLI:** From the private fork folder opened in step 3, run:
 
 ```powershell
 claude
 ```
 
-For Codex, open the same VIctory checkout and follow `AGENTS.md`.
+For Codex, open the same private fork checkout and follow `AGENTS.md`.
 
 ## What is included
 
@@ -123,7 +149,7 @@ For Codex, open the same VIctory checkout and follow `AGENTS.md`.
 | [Microsoft Learn](https://github.com/MicrosoftDocs/mcp) | Search official documentation for D3D12, DXGI, Win32 and related APIs. | Project `.mcp.json`; approve in Claude. Remote HTTP service. |
 | [PIX DxDmp](https://learn.microsoft.com/windows/pix/directx-dump-files/dxdmp-tools-reference) | Analyze compatible `.dxdmp` GPU crash dumps with local protocol tools. Not a general GUI controller or CPU debugger. | `-InstallTools -EnablePixMcp`; local `DxDmpMcp.exe` over stdio. Requires both x64 .NET 10 runtimes below. |
 
-GitHub CLI is used for upstream research. GitHub MCP is optional and is not registered automatically; see the [official server](https://github.com/github/github-mcp-server). Prefer read-only access. No tokens are stored in this repository.
+GitHub CLI is used for explicit public upstream research (for example `gh pr list --repo Marvisak/VIctory`); local development remains in the private fork. GitHub MCP is optional and is not registered automatically; see the [official server](https://github.com/github/github-mcp-server). Prefer read-only access. No tokens are stored in this repository.
 
 ### Software and runtime dependencies installed by the bootstrap
 
@@ -139,20 +165,22 @@ GitHub CLI is used for upstream research. GitHub MCP is optional and is not regi
 
 The bootstrap attempts missing installations; it does not silently upgrade unrelated packages or replace existing custom configurations. PIX runtime checks use the x64 .NET host and installed framework versions, not just Winget registration. It installs or updates an insufficient 10.0 runtime when PIX MCP is explicitly enabled. Authentication, UAC prompts, missing installers and driver/hardware support may require manual action. The VIctory asset-policy Git hook is also configured if no conflicting hook exists.
 
-### Optional tools (manual installation, not installed by the script)
+### FullStack and optional tools
 
-| Tool | Purpose / install |
-|---|---|
-| [CDB](https://developer.microsoft.com/windows/downloads/windows-sdk/) | Command-line native debugger; choose Debugging Tools for Windows in Windows SDK setup. |
-| [DXC](https://github.com/microsoft/DirectXShaderCompiler/releases) | Compile synthetic HLSL references and inspect/validate DXIL; use the SDK or official binaries. VIctory itself emits DXIL directly. |
-| [RenderDoc](https://github.com/baldurk/renderdoc/releases) | Inspect supported frame captures and resources; use the Windows installer. |
-| [Process Monitor](https://learn.microsoft.com/sysinternals/downloads/procmon) | Investigate file and DLL access; download and extract Sysinternals tool. |
-| [Windows Performance Toolkit](https://learn.microsoft.com/windows-hardware/test/wpt/) | CPU, memory and I/O profiling; install through Windows ADK. |
-| [Ghidra](https://github.com/NationalSecurityAgency/ghidra/releases) | Authorized static binary/ABI analysis; download release and its required JDK. |
-| [NVIDIA Nsight Graphics / Aftermath](https://developer.nvidia.com/nsight-graphics) | NVIDIA GPU captures and crash analysis; use vendor installer, Aftermath integration as needed. |
-| [NVIDIA Nsight Systems](https://developer.nvidia.com/nsight-systems) | NVIDIA CPU/GPU timeline and performance profiling; vendor installer. |
-| [AMD Radeon GPU Profiler](https://gpuopen.com/rgp/) | AMD-specific performance profiling; vendor download. |
-| [WinDbg skills](https://github.com/microsoft/win-dev-skills) | Optional debugger-oriented agent workflows; follow the current upstream plugin instructions. |
+| Tool | Purpose / install | Mode |
+|---|---|---|
+| [CDB](https://developer.microsoft.com/windows/downloads/windows-sdk/) | Command-line native debugger for CPU faults and call stacks. FullStack: WinGet SDK `Microsoft.WindowsSDK.10.0.26100`; select **Debugging Tools for Windows** in SDK setup if CDB is still missing. | FullStack (SDK feature may require manual setup) |
+| [DXC](https://github.com/microsoft/DirectXShaderCompiler/releases) | Compile synthetic HLSL references and inspect/validate DXIL. VIctory emits DXIL directly. FullStack: `winget install --id Microsoft.DirectX.ShaderCompiler -e`; SDK or official binaries also work. | FullStack |
+| [RenderDoc](https://github.com/baldurk/renderdoc/releases) | Inspect supported GPU frame captures and resources. FullStack: `winget install --id BaldurKarlsson.RenderDoc -e`; verify supported capture. | FullStack |
+| [Process Monitor](https://learn.microsoft.com/sysinternals/downloads/procmon) | Investigate file and DLL access. FullStack: `winget install --id Microsoft.Sysinternals.ProcessMonitor -e`. | FullStack |
+| [Windows Performance Toolkit](https://learn.microsoft.com/windows-hardware/test/wpt/) | CPU, memory and I/O profiling; install through Windows ADK. | Optional manual |
+| [Ghidra](https://github.com/NationalSecurityAgency/ghidra/releases) | Authorized static binary/ABI analysis; download release and its required JDK. | Optional manual |
+| [NVIDIA Nsight Graphics / Aftermath](https://developer.nvidia.com/nsight-graphics) | NVIDIA GPU captures and crash analysis; use vendor installer, Aftermath integration as needed. | GPU-specific manual (detected by FullStack) |
+| [NVIDIA Nsight Systems](https://developer.nvidia.com/nsight-systems) | NVIDIA CPU/GPU timeline and performance profiling; vendor installer. | Optional manual |
+| [AMD Radeon GPU Profiler](https://gpuopen.com/rgp/) | AMD-specific performance profiling; vendor download. | GPU-specific manual (detected by FullStack) |
+| [WinDbg skills](https://github.com/microsoft/win-dev-skills) | Debugger-oriented agent workflows and diagnosis validation. FullStack: `claude plugin marketplace add microsoft/win-dev-skills`, then `claude plugin install windbg@win-dev-skills --scope project`. | FullStack |
+
+FullStack package references: [DXC manifest](https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Microsoft/DirectX/ShaderCompiler), [RenderDoc manifest](https://github.com/microsoft/winget-pkgs/tree/master/manifests/b/BaldurKarlsson/RenderDoc), [Process Monitor manifest](https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Microsoft/Sysinternals/ProcessMonitor), [Windows SDK](https://developer.microsoft.com/windows/downloads/windows-sdk/) and [WinDbg skills](https://github.com/microsoft/win-dev-skills). On an existing SDK installation, select Debugging Tools for Windows manually if the SDK package is already present but CDB is missing.
 
 ## PIX MCP troubleshooting
 
